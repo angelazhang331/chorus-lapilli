@@ -1,0 +1,269 @@
+Chorus Lapilli Log File
+
+To create chorus-lapilli, I started by copying and pasting the final files from the tutorial as a base file for the new game. This way, the Board, Squares, and memory are already created.
+
+Then, I decided to focus on implementing the two differences for chorus lapilli from tic tac toe. 1) You are only allowed three pieces at a time. 2) If you have three pieces on the board and one of your pieces is in the center square, you must either win or vacate the center square in your next move. (( I am a little confused on how to implement on how to implement the second rule, so I'm going to start with the first ))
+
+In order to implement the first rule, I need to start with the handleClick function to create a case for selecting the grain to move. The first click in a step, if there has already been more than 6 steps, would have to be picking up a block that already has a grain in it, checking that the one chosen has a state of 'X' or 'O'. Then, I need to handle the second click, which must be chosen on a block adjacent to that of the original block.
+
+- check if there is already a winner
+	- if there is already a winner, return
+- check the number of moves: if less than 6
+	- check that not clicking already preoccupied square
+		- update normally
+- check if more than 6
+	- check if piece already picked up
+		- check if new block is adjacent
+			- update and erase original
+			- reset pickUpSquare back to -1 to represent no block being picked
+		- if block not adjacent
+			- return without updating
+ 	- if piece not picked up
+		- check if new block contains the right symbol
+			- update pickupSquare
+			- return
+		- if wrong symbol
+			- return without updating
+
+I was able to implement all of these checks and situations by using nested if statements, and although this is not line efficient, it still achieves the right end goal.
+
+I want to handle the adjacent Square checking through using a 2d array, and checking it by row. So if the Square that the grain is picked up from is Square 2, then I would check the second row of the 2d array for whether the placeDown Square is adjacent.
+
+in order to implement the second rule, I created another if section of the handleClick function. In this section, I only checked for cases past 6 grains placed, as that is the only time the rule applies. I checked that if there was a grain picked up, that it was placed down in a winning position, or the grain in the middle was picked, otherwise the player would have to repick. 
+
+- check if something was played in the center
+	- if no coin has been picked yet
+		- allow any coin to be picked
+	- if a coin is picked
+		- check that placement is adjacent
+			- check either the middle was moved or new placement is win
+				- update state
+				- reset coin pickup
+				- reset centerplayed
+			- if neither
+				- reset coin pickup
+		- return if not adjacent
+
+In the end to make it work, I created a variable to keep track of whether "X" or "O" was in the center. I also had to next an extra if statement for the case in which there is something in the middle. I did create a temporary variable to hold a temporary array that checked if the next move was a winning one.
+
+Since I only made changes to the Game class, I am only pasting that constructor and the handleClick function to comment and the new function that I made for checking adjacent.
+
+// constructor for the Game
+
+    constructor(props) {
+        super(props);
+        this.state = {
+            history: [
+                {
+                    squares: Array(9).fill(null)
+                }
+            ],
+            stepNumber: 0,
+            xIsNext: true,
+            pickupSquare: -1,   // created a variable to see if a grain has been picked up
+				// the variable will hold -1 when nothing was picked
+				// and hold the index of the Square if a grain was picked up
+            centerPlayed: false,	// false if there is anything in the center
+					// true if there is something in the center
+            centerX: true,	// true if the block in the center is an X
+				// and false if the center is O
+        };
+    }
+
+// new handle click function
+
+    handleClick(i) {
+        const history = this.state.history.slice(0, this.state.stepNumber + 1);
+        const current = history[history.length - 1];
+        const squares = current.squares.slice();
+        if (calculateWinner(squares)) {		// if someone has already won, do nothing for clicks
+            return;
+        }
+	
+	// if there is something in the center and it's that players turn again
+	
+        if (this.state.centerPlayed && ((this.state.xIsNext && this.state.centerX) || (!this.state.xIsNext && !this.state.centerX))) {
+
+	    // if a grain hasn't been picked up yet, allow any piece to be picked up and updated pickupSquare state variable
+
+            if(this.state.pickupSquare === -1) {
+                if((squares[i] === "X" && this.state.xIsNext) || (squares[i] === "O" && !this.state.xIsNext)) {
+                    this.setState({
+                        pickupSquare: i,
+                    });
+                }
+            }
+            
+	    // if a grain has already been picked up, then check that it follows rule 2
+
+            else {
+
+		// first check that the attempted move is adjacent to the original 
+
+                if(checkAdjacent(this.state.pickupSquare, i)) {
+
+		    // make a temporary array with the potential move to see if that move is a win
+
+                    var temp = Array(9).fill(null);
+                    for(var x = 0; x < squares.length; x++) {
+                        temp[x] = squares[x];
+                    }
+                    temp[i] = this.state.xIsNext ? "X" : "O";
+                    temp[this.state.pickupSquare] = null;
+
+		    // if that move is a win or if the grain being moved is the center grain, then update as usual
+
+                    if(calculateWinner(temp) || this.state.pickupSquare === 4) {
+                        squares[i] = this.state.xIsNext ? "X" : "O";
+                        squares[this.state.pickupSquare] = null;
+                        this.setState({
+                            history: history.concat([
+                                {
+                                    squares: squares
+                                }
+                            ]),
+                            stepNumber: history.length,
+                            xIsNext: !this.state.xIsNext,
+
+			    // recent center tracking variables since now there is a winner or no one on center anymore
+
+                            pickupSquare: -1,
+                            centerPlayed: false,
+                        });
+                    }
+
+		    // if that move is not legal (so not a winning move or the center grain is not moved)
+		    // then have the player pick again
+
+                    else {
+                        this.setState({
+                            pickupSquare: -1,
+                        })
+                    }
+                }
+            }
+        }
+
+	// if there is nothing played in the center
+	
+        else {
+
+	    // if 6 pieces haven't been placed down yet and there is no need for moving pieces,
+	    // play as normal
+
+            if (this.state.stepNumber < 6) {
+                if (!squares[i]) {
+                    squares[i] = this.state.xIsNext ? "X" : "O";
+                    this.setState({
+                        history: history.concat([
+                        {
+                            squares: squares
+                        }
+                        ]),
+                        stepNumber: history.length,
+                        xIsNext: !this.state.xIsNext,
+                    });
+                }
+            }
+
+	    // if there are more than 6 grains placed down, check for picking up grains
+
+            else {
+
+                // if a grain hasn't been picked up yet, check that the player is picking up their own piece
+
+                if(this.state.pickupSquare === -1) {
+                    if((squares[i] === "X" && this.state.xIsNext) || (squares[i] === "O" && !this.state.xIsNext)) {
+                        this.setState({
+                            pickupSquare: i,
+                        });
+                    }
+                }
+
+                // if they already picked up a piece,
+
+                else {
+
+		    // check that the next placement is adjacent, then update normally
+
+                    if(checkAdjacent(this.state.pickupSquare, i)) {
+                        squares[i] = this.state.xIsNext ? "X" : "O";
+                        squares[this.state.pickupSquare] = null;
+                        this.setState({
+                            history: history.concat([
+                                {
+                                    squares: squares
+                                }
+                            ]),
+                            stepNumber: history.length,
+				
+			    // if something was placed in the center, then update center tracking variables
+
+                            centerX: i === 4 ? this.state.xIsNext : this.state.centerX,
+                            xIsNext: !this.state.xIsNext,
+                            pickupSquare: -1,
+                            centerPlayed: i === 4 ? true : this.state.centerPlayed,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+// function to check if move is adjacent
+
+    // returns true if the next move is adjacent, false if it's not adjacent
+
+    function checkAdjacent(pickUp, placeDown) {
+
+	// create a 2d array that holds all possible moves for each initial square	
+
+        const adjacent = [
+            [1, 3, 4],
+            [0, 2, 3, 4, 5],
+            [1, 4, 5],
+            [0, 1, 4, 6, 7],
+            [0, 1, 2, 3, 5, 6, 7, 8],
+            [1, 2, 4, 7, 8],
+            [3, 4, 7],
+            [3, 4, 5, 6, 8],
+            [4, 5, 7] 
+        ];
+
+	// check that the attempted move is allowed		
+
+        for(let i = 0; i < adjacent[pickUp].length; i++) {
+            if (adjacent[pickUp][i] === placeDown) {
+                return true;	// if allowed, return true
+            }
+        }
+        return false;	// if not allowed, return false
+    }
+
+When I ran npm pack's --dry-run option, I got this as the output:
+
+	npm notice 
+	npm notice 📦  chorus-lapilli@0.1.0
+	npm notice === Tarball Contents === 
+	npm notice 742B  src/index.css       
+	npm notice 1.7kB public/index.html   
+	npm notice 3.9kB public/favicon.ico  
+	npm notice 7.9kB src/index.js        
+	npm notice 492B  public/manifest.json
+	npm notice 817B  package.json        
+	npm notice 3.4kB README.md           
+	npm notice 5.3kB public/logo192.png  
+	npm notice 9.7kB public/logo512.png  
+	npm notice 67B   public/robots.txt   
+	npm notice === Tarball Details === 
+	npm notice name:          chorus-lapilli                          
+	npm notice version:       0.1.0                                   
+	npm notice filename:      chorus-lapilli-0.1.0.tgz                
+	npm notice package size:  24.0 kB                                 
+	npm notice unpacked size: 34.0 kB                                 
+	npm notice shasum:        036998f9eeac8785ce2d634faf9d97e45331e0d4
+	npm notice integrity:     sha512-O4hPBn5A1blAC[...]11FxFnlSM4i4w==
+	npm notice total files:   10                                      
+	npm notice 
+
+This command runs npm pack and outputs the same output without actually packing anything. So the pack's information is outputed but not the pack itself.
